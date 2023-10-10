@@ -59,7 +59,7 @@ namespace Files.App.Utils.Archives
 			return (sources, directory, fileName);
 		}
 
-		public static async Task CompressArchiveAsync(IArchiveCreator creator)
+		public static async Task<bool> CompressArchiveAsync(IArchiveCreator creator)
 		{
 			var archivePath = creator.GetArchivePath();
 
@@ -108,6 +108,7 @@ namespace Files.App.Utils.Archives
 					FileOperationType.Compressed
 				);
 			}
+			return isSuccess;
 		}
 
 		private static async Task ExtractArchive(BaseStorageFile archive, BaseStorageFolder? destinationFolder, string password)

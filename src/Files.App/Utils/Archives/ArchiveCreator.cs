@@ -151,12 +151,16 @@ namespace Files.App.Utils.Archives
 				var directories = sources.Where(SystemIO.Directory.Exists);
 
 				_itemsAmount = files.Length + directories.Count();
-
+				
 				foreach (string directory in directories)
 				{
+					if (!SystemIO.Directory.EnumerateFileSystemEntries(directory).Any())
+					{
+						continue; // Skip empty directories
+					}
 					await compressor.CompressDirectoryAsync(directory, ArchivePath, Password);
 
-					compressor.CompressionMode = CompressionMode.Append;
+					compressor.CompressionMode = CompressionMode.Append; 
 				}
 
 				if (files.Any())
@@ -177,7 +181,7 @@ namespace Files.App.Utils.Archives
 				return false;
 			}
 		}
-
+		 
 		private void Compressor_CompressionFinished(object? sender, EventArgs e)
 		{
 			if (++_processedItems == _itemsAmount)
