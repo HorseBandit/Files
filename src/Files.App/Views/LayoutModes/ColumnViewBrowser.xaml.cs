@@ -7,6 +7,7 @@ using Files.App.ViewModels.LayoutModes;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
+using Windows.Foundation;
 using Windows.Storage;
 using static Files.App.Constants;
 using static Files.App.Helpers.PathNormalization;
@@ -159,6 +160,11 @@ namespace Files.App.Views.LayoutModes
 						viewBase.ItemInvoked -= ColumnViewBase_ItemInvoked;
 						viewBase.ItemTapped -= ColumnViewBase_ItemTapped;
 						viewBase.KeyUp -= ColumnViewBase_KeyUp;
+						if(viewBase.FileList is ListView listView)
+						{
+							listView.Unloaded -= ListView_Loaded;
+							listView.ContainerContentChanging -= ListView_Updated;
+						}
 					}
 				}
 
@@ -200,9 +206,18 @@ namespace Files.App.Views.LayoutModes
 						{
 							columnLayout.ItemInvoked -= ColumnViewBase_ItemInvoked;
 							columnLayout.ItemTapped -= ColumnViewBase_ItemTapped;
-							columnLayout.KeyUp -= ColumnViewBase_KeyUp;
+							columnLayout.KeyUp -= ColumnViewBase_KeyUp;	
 						}
+						if((frame?.Content as ColumnShellPage)?.SlimContentPage is ColumnViewBase columnView) 
+						{
+							var listView = columnView.FileList;
+							if (listView != null)
+							{
+								listView.ContainerContentChanging -= ListView_Updated;
+								listView.Unloaded -= ListView_Updated;
 
+							}
+						}
 						(frame?.Content as UIElement).GotFocus -= ColumnViewBrowser_GotFocus;
 						(frame?.Content as ColumnShellPage).ContentChanged -= ColumnViewBrowser_ContentChanged;
 
@@ -261,9 +276,55 @@ namespace Files.App.Views.LayoutModes
 				columnView.ItemTapped += ColumnViewBase_ItemTapped;
 				columnView.KeyUp -= ColumnViewBase_KeyUp;
 				columnView.KeyUp += ColumnViewBase_KeyUp;
+				var listView = columnView.FileList;
+				if (listView != null)
+				{
+					listView.Loaded -= ListView_Updated;
+
+					listView.Loaded += ListView_Loaded;
+				}
 			}
 
 			ContentChanged(c);
+		}
+		private void ListView_Loaded(object sender, RoutedEventArgs e)
+		{
+			if ((sender as ListView) != null)
+			{
+				(sender as ListView).ContainerContentChanging -= ListView_Updated;
+				(sender as ListView).ContainerContentChanging += ListView_Updated;
+				ListView_Updated(sender, e);
+			}
+		}
+		private void ListView_Updated(object? sender, object e)
+		{
+			var listView = sender as ListView;
+			if (listView == null) return;
+
+			if (listView.Items.Count == 0) return;
+			double maxWidth = 0;
+			foreach (var item in listView.Items)
+			{
+				var container = listView.ContainerFromItem(item) as ListViewItem;
+				if (container != null)
+				{
+					container.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+					if (container.DesiredSize.Width > maxWidth)
+					{
+						maxWidth = container.DesiredSize.Width;
+					}
+				}
+
+			}
+
+			// Add a little padding to the max width
+			maxWidth += 20;
+
+			var blade = listView.FindAscendant<BladeItem>();
+			if (blade != null)
+			{
+				blade.Width = maxWidth;
+			}
 		}
 
 		private void ColumnViewBase_KeyUp(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
