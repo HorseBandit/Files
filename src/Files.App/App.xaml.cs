@@ -153,8 +153,8 @@ namespace Files.App
 			// Wait for the Window to initialize
 			await Task.Delay(10);
 
-			SplashScreenLoadingTCS = new TaskCompletionSource();
-			MainWindow.Instance.ShowSplashScreen();
+			// Show the splash screen and set up the completion source
+			await ShowSplashScreenAndSetupCompletionSource();
 
 			// Get AppActivationArguments
 			var appActivationArguments = Microsoft.Windows.AppLifecycle.AppInstance.GetCurrent().GetActivatedEventArgs();
@@ -185,6 +185,12 @@ namespace Files.App
 			_host = _appLifecycleHelper.ConfigureHost();
 			Ioc.Default.ConfigureServices(_host.Services);
 			EnsureSettingsAndConfigurationAreBootstrapped();
+		}
+
+		private async Task ShowSplashScreenAndSetupCompletionSource()
+		{
+			SplashScreenLoadingTCS = new TaskCompletionSource();
+			MainWindow.Instance.ShowSplashScreen();
 		}
 
 
