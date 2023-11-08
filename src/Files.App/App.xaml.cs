@@ -143,44 +143,50 @@ namespace Files.App
 		protected override void OnLaunched(LaunchActivatedEventArgs e)
 		{
 			_ = ActivateAsync();
-
-			async Task ActivateAsync()
-			{
-				// Initialize and activate MainWindow
-				EnsureSuperEarlyWindow();
-
-				// Wait for the Window to initialize
-				await Task.Delay(10);
-
-				SplashScreenLoadingTCS = new TaskCompletionSource();
-				MainWindow.Instance.ShowSplashScreen();
-
-				// Get AppActivationArguments
-				var appActivationArguments = Microsoft.Windows.AppLifecycle.AppInstance.GetCurrent().GetActivatedEventArgs();
-
-				// Start tracking app usage
-				if (appActivationArguments.Data is Windows.ApplicationModel.Activation.IActivatedEventArgs activationEventArgs)
-					SystemInformation.Instance.TrackAppUse(activationEventArgs);
-
-				// Configure Host and IoC
-				_host = _appLifecycleHelper.ConfigureHost();
-				
-				Ioc.Default.ConfigureServices(_host.Services);
-				EnsureSettingsAndConfigurationAreBootstrapped();
-
-				// TODO: Remove App.Logger instance and replace with DI
-				Logger = Ioc.Default.GetRequiredService<ILogger<App>>();
-				Logger.LogInformation($"App launched. Launch args type: {appActivationArguments.Data.GetType().Name}");
-
-				// Wait for the UI to update
-				await SplashScreenLoadingTCS!.Task.WithTimeoutAsync(TimeSpan.FromMilliseconds(500));
-				SplashScreenLoadingTCS = null;
-
-				_ = InitializeAppComponentsAsync().ContinueWith(t => Logger.LogWarning(t.Exception, "Error during InitializeAppComponentsAsync()"), TaskContinuationOptions.OnlyOnFaulted);
-
-				_ = MainWindow.Instance.InitializeApplication(appActivationArguments.Data);
-			}
 		}
+
+		private async Task ActivateAsync()
+		{
+			// Initialize and activate MainWindow
+			EnsureSuperEarlyWindow();
+
+			// Wait for the Window to initialize
+			await Task.Delay(10);
+
+			SplashScreenLoadingTCS = new TaskCompletionSource();
+			MainWindow.Instance.ShowSplashScreen();
+
+			// Get AppActivationArguments
+			var appActivationArguments = Microsoft.Windows.AppLifecycle.AppInstance.GetCurrent().GetActivatedEventArgs();
+
+			// Start tracking app usage
+			if (appActivationArguments.Data is Windows.ApplicationModel.Activation.IActivatedEventArgs activationEventArgs)
+				SystemInformation.Instance.TrackAppUse(activationEventArgs);
+
+			// Configure Host and IoC
+			await ConfigureServicesAsync();
+
+			// TODO: Remove App.Logger instance and replace with DI
+			Logger = Ioc.Default.GetRequiredService<ILogger<App>>();
+			Logger.LogInformation($"App launched. Launch args type: {appActivationArguments.Data.GetType().Name}");
+
+			// Wait for the UI to update
+			await SplashScreenLoadingTCS!.Task.WithTimeoutAsync(TimeSpan.FromMilliseconds(500));
+			SplashScreenLoadingTCS = null;
+
+			_ = InitializeAppComponentsAsync().ContinueWith(t => Logger.LogWarning(t.Exception, "Error during InitializeAppComponentsAsync()"), TaskContinuationOptions.OnlyOnFaulted);
+
+			_ = MainWindow.Instance.InitializeApplication(appActivationArguments.Data);
+		}
+
+		private async Task ConfigureServicesAsync()
+		{
+			// Encapsulate the configuration of the host and the setup of the IoC container here.
+			_host = _appLifecycleHelper.ConfigureHost();
+			Ioc.Default.ConfigureServices(_host.Services);
+			EnsureSettingsAndConfigurationAreBootstrapped();
+		}
+
 
 		private static void EnsureSettingsAndConfigurationAreBootstrapped()
 		{
