@@ -9,6 +9,7 @@ using Files.Core.Storage.NestedStorage;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.Foundation.Collections;
 using Windows.Storage;
 using Windows.Storage.Streams;
 using ByteSize = ByteSizeLib.ByteSize;
@@ -219,7 +220,7 @@ namespace Files.App.Data.Items
 				ToolTipService.SetToolTip(itemDecorator, "Eject".GetLocalizedResource());
 
 				itemDecorator.Click += ItemDecorator_Click;
-        
+
 				return itemDecorator;
 			}
 		}
@@ -259,17 +260,25 @@ namespace Files.App.Data.Items
 
 			return item;
 		}
-
 		public async Task UpdateLabelAsync()
 		{
 			try
 			{
 				var properties = await Root.Properties.RetrievePropertiesAsync(new[] { "System.ItemNameDisplay" })
 					.AsTask().WithTimeoutAsync(TimeSpan.FromSeconds(5));
-				Text = (string)properties["System.ItemNameDisplay"];
+
+				UpdateLabelText(properties);
 			}
 			catch (NullReferenceException)
 			{
+			}
+		}
+
+		private void UpdateLabelText(IDictionary<string, object> properties)
+		{
+			if (TryGetPropertyValue(properties, "System.ItemNameDisplay", out var itemNameDisplay))
+			{
+				Text = (string)itemNameDisplay;
 			}
 		}
 
@@ -280,24 +289,7 @@ namespace Files.App.Data.Items
 				var properties = await Root.Properties.RetrievePropertiesAsync(new[] { "System.FreeSpace", "System.Capacity" })
 					.AsTask().WithTimeoutAsync(TimeSpan.FromSeconds(5));
 
-				if (properties is not null && properties["System.Capacity"] is not null && properties["System.FreeSpace"] is not null)
-				{
-					MaxSpace = ByteSize.FromBytes((ulong)properties["System.Capacity"]);
-					FreeSpace = ByteSize.FromBytes((ulong)properties["System.FreeSpace"]);
-					SpaceUsed = MaxSpace - FreeSpace;
-
-					SpaceText = GetSizeString();
-
-					if (MaxSpace.Bytes > 0 && FreeSpace.Bytes > 0) // Make sure we don't divide by 0
-						PercentageUsed = 100.0f - (float)(FreeSpace.Bytes / MaxSpace.Bytes) * 100.0f;
-				}
-				else
-				{
-					SpaceText = "Unknown".GetLocalizedResource();
-					MaxSpace = SpaceUsed = FreeSpace = ByteSize.FromBytes(0);
-				}
-
-				OnPropertyChanged(nameof(ShowDriveDetails));
+				UpdateDriveProperties(properties);
 			}
 			catch (Exception)
 			{
@@ -306,6 +298,38 @@ namespace Files.App.Data.Items
 
 				OnPropertyChanged(nameof(ShowDriveDetails));
 			}
+		}
+
+		private void UpdateDriveProperties(IDictionary<string, object> properties)
+		{
+			if (properties is not null && properties["System.Capacity"] is not null && properties["System.FreeSpace"] is not null)
+			{
+				MaxSpace = ByteSize.FromBytes((ulong)properties["System.Capacity"]);
+				FreeSpace = ByteSize.FromBytes((ulong)properties["System.FreeSpace"]);
+				SpaceUsed = MaxSpace - FreeSpace;
+
+				SpaceText = GetSizeString();
+
+				if (MaxSpace.Bytes > 0 && FreeSpace.Bytes > 0)
+					PercentageUsed = 100.0f - (float)(FreeSpace.Bytes / MaxSpace.Bytes) * 100.0f;
+			}
+			else
+			{
+				SpaceText = "Unknown".GetLocalizedResource();
+				MaxSpace = SpaceUsed = FreeSpace = ByteSize.FromBytes(0);
+			}
+
+			OnPropertyChanged(nameof(ShowDriveDetails));
+		}
+
+		private bool TryGetPropertyValue(IDictionary<string, object> properties, string propertyName, out object value)
+		{
+			value = null;
+			if (properties.TryGetValue(propertyName, out value))
+			{
+				return true;
+			}
+			return false;
 		}
 
 		public int CompareTo(INavigationControlItem other)
