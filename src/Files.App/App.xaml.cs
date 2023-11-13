@@ -249,13 +249,7 @@ namespace Files.App
 			// Save application state and stop any background activity
 
 			// A Workaround for the crash (#10110)
-			if (LastOpenedFlyout?.IsOpen ?? false)
-			{
-				args.Handled = true;
-				LastOpenedFlyout.Closed += (sender, e) => App.Current.Exit();
-				LastOpenedFlyout.Hide();
-				return;
-			}
+			HandleLastOpenedFlyout(args);
 
 			if (Ioc.Default.GetRequiredService<IUserSettingsService>().GeneralSettingsService.LeaveAppRunning &&
 				!AppModel.ForceProcessTermination &&
@@ -334,6 +328,17 @@ namespace Files.App
 			// Wait for ongoing file operations
 			FileOperationsHelpers.WaitForCompletion();
 		}
+
+		private void HandleLastOpenedFlyout(WindowEventArgs args)
+		{
+			if (LastOpenedFlyout?.IsOpen ?? false)
+			{
+				args.Handled = true;
+				LastOpenedFlyout.Closed += (sender, e) => App.Current.Exit();
+				LastOpenedFlyout.Hide();
+			}
+		}
+
 
 		/// <summary>
 		/// Enumerates through all tabs and gets the Path property and saves it to AppSettings.LastSessionPages.
