@@ -57,16 +57,18 @@ namespace Files.App.Utils.Archives
 
 			return (sources, directory, fileName);
 		}
-
-		public static async Task CompressArchiveAsync(ICompressArchiveModel creator)
+		private static string DetermineArchivePath(ICompressArchiveModel creator)
 		{
 			var archivePath = creator.GetArchivePath();
-
 			int index = 1;
-
 			while (File.Exists(archivePath) || Directory.Exists(archivePath))
+			{
 				archivePath = creator.GetArchivePath($" ({++index})");
-
+			}
+			return archivePath;
+		}
+		private static async Task<bool> RunCompressionAsync(ICompressArchiveModel creator, string archivePath)
+		{
 			creator.ArchivePath = archivePath;
 
 			var banner = StatusCenterHelper.AddCard_Compress(
@@ -81,7 +83,10 @@ namespace Files.App.Utils.Archives
 			bool isSuccess = await creator.RunCreationAsync();
 
 			_statusCenterViewModel.RemoveItem(banner);
-
+			return isSuccess;
+		}
+		private static void HandlePostCompression(ICompressArchiveModel creator, string archivePath, bool isSuccess)
+		{
 			if (isSuccess)
 			{
 				StatusCenterHelper.AddCard_Compress(
@@ -100,6 +105,12 @@ namespace Files.App.Utils.Archives
 					ReturnResult.Failed,
 					creator.Sources.Count());
 			}
+		}
+		public static async Task CompressArchiveAsync(ICompressArchiveModel creator)
+		{
+			string archivePath = DetermineArchivePath(creator);
+			bool isSuccess = await RunCompressionAsync(creator, archivePath);
+			HandlePostCompression(creator, archivePath, isSuccess);
 		}
 	}
 }
