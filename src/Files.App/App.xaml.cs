@@ -246,52 +246,22 @@ namespace Files.App
 		/// <param name="args">Details about the suspend request.</param>
 		private async void Window_Closed(object sender, WindowEventArgs args)
 		{
-			// Save application state and stop any background activity
-
-			// A Workaround for the crash (#10110)
+			// Handle case when the last opened flyout is still open
 			HandleLastOpenedFlyout(args);
 
-			if (Ioc.Default.GetRequiredService<IUserSettingsService>().GeneralSettingsService.LeaveAppRunning &&
-				!AppModel.ForceProcessTermination &&
-				!Process.GetProcessesByName("Files").Any(x => x.Id != Process.GetCurrentProcess().Id))
+			// Check and handle if the app should keep running in the background
+			if (ShouldKeepAppRunning())
 			{
-				// Close open content dialogs
-				UIHelpers.CloseAllDialogs();
-				
-				// Close all notification banners except in progress
-				Ioc.Default.GetRequiredService<StatusCenterViewModel>().RemoveAllCompletedItems();
-
-				// Cache the window instead of closing it
-				MainWindow.Instance.AppWindow.Hide();
-				args.Handled = true;
-
-				// Save and close all tabs
-				SaveSessionTabs();
-				MainPageViewModel.AppInstances.ForEach(tabItem => tabItem.Unload());
-				MainPageViewModel.AppInstances.Clear();
-
-				// Wait for all properties windows to close
-				await FilePropertiesHelpers.WaitClosingAll();
-
-				// Sleep current instance
-				Program.Pool = new(0, 1, "Files-Instance");
-				Thread.Yield();
-				if (Program.Pool.WaitOne())
-				{
-					// Resume the instance
-					Program.Pool.Dispose();
-
-					_ = CheckForRequiredUpdates();
-				}
-
+				await HandleAppRunningInBackground(args);
 				return;
 			}
 
-			// Method can take a long time, make sure the window is hidden
-			await Task.Yield();
+			// Perform tasks when the window is closing and the app is not set to keep running
+			await Task.Yield();  // Yield to ensure the window is hidden before performing time-consuming operations
 
 			SaveSessionTabs();
 
+			// Handle output path logic if set
 			if (OutputPath is not null)
 			{
 				await SafetyExtensions.IgnoreExceptions(async () =>
@@ -309,7 +279,7 @@ namespace Files.App
 				Logger);
 			}
 
-			// Try to maintain clipboard data after app close
+			// Maintain clipboard data after app close
 			SafetyExtensions.IgnoreExceptions(() =>
 			{
 				var dataPackage = Clipboard.GetContent();
@@ -321,13 +291,55 @@ namespace Files.App
 			},
 			Logger);
 
-			// Destroy cached properties windows
+			// Destroy any cached property windows
 			FilePropertiesHelpers.DestroyCachedWindows();
+
+			// Mark the main window as closed
 			AppModel.IsMainWindowClosed = true;
 
-			// Wait for ongoing file operations
+			// Wait for any ongoing file operations to complete
 			FileOperationsHelpers.WaitForCompletion();
 		}
+
+		private bool ShouldKeepAppRunning()
+		{
+			return Ioc.Default.GetRequiredService<IUserSettingsService>().GeneralSettingsService.LeaveAppRunning &&
+				   !AppModel.ForceProcessTermination &&
+				   !Process.GetProcessesByName("Files").Any(x => x.Id != Process.GetCurrentProcess().Id);
+		}
+
+		private async Task HandleAppRunningInBackground(WindowEventArgs args)
+		{
+			// Close open content dialogs
+			UIHelpers.CloseAllDialogs();
+
+			// Close all notification banners except in progress
+			Ioc.Default.GetRequiredService<StatusCenterViewModel>().RemoveAllCompletedItems();
+
+			// Cache the window instead of closing it
+			MainWindow.Instance.AppWindow.Hide();
+			args.Handled = true;
+
+			// Save and close all tabs
+			SaveSessionTabs();
+			MainPageViewModel.AppInstances.ForEach(tabItem => tabItem.Unload());
+			MainPageViewModel.AppInstances.Clear();
+
+			// Wait for all properties windows to close
+			await FilePropertiesHelpers.WaitClosingAll();
+
+			// Sleep current instance
+			Program.Pool = new(0, 1, "Files-Instance");
+			Thread.Yield();
+			if (Program.Pool.WaitOne())
+			{
+				// Resume the instance
+				Program.Pool.Dispose();
+
+				_ = CheckForRequiredUpdates();
+			}
+		}
+
 
 		private void HandleLastOpenedFlyout(WindowEventArgs args)
 		{
