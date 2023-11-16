@@ -86,15 +86,33 @@ namespace Files.App.Views.LayoutModes
 		protected override void OnNavigatedTo(NavigationEventArgs eventArgs)
 		{
 			base.OnNavigatedTo(eventArgs);
+			NavigateToPath(navigationArguments.NavPathParam);
+		}
+		private void NavigateToPath(string path)
+		{
+			var pathStack = GetPathStack(path);
 
-			var path = navigationArguments.NavPathParam;
+			OwnerPath = navigationArguments.NavPathParam;
+			FocusIndex = pathStack.Count;
+
+			MainPageFrame.Navigated += Frame_Navigated;
+			MainPageFrame.Navigate(typeof(ColumnShellPage), GetColumnParam(0, path));
+
+			var index = 0;
+			while (pathStack.TryPop(out path))
+			{
+				var (frame, _) = CreateAndAddNewBlade();
+
+				frame.Navigate(typeof(ColumnShellPage), GetColumnParam(++index, path));
+			}
+		}
+		private Stack<string> GetPathStack(string path)
+		{
 			var pathStack = new Stack<string>();
 
 			if (path is not null)
 			{
-				var rootPathList = App.QuickAccessManager.Model.FavoriteItems.Select(NormalizePath)
-					.Concat(App.CloudDrivesManager.Drives.Select(x => NormalizePath(x.Path))).ToList();
-				rootPathList.Add(NormalizePath(GetPathRoot(path)));
+				var rootPathList = GetRootPathList(path);
 
 				while (!rootPathList.Contains(NormalizePath(path)))
 				{
@@ -103,35 +121,29 @@ namespace Files.App.Views.LayoutModes
 				}
 			}
 
-			OwnerPath = navigationArguments.NavPathParam;
-			FocusIndex = pathStack.Count;
-
-			MainPageFrame.Navigated += Frame_Navigated;
-			MainPageFrame.Navigate(typeof(ColumnShellPage), new ColumnParam
+			return pathStack;
+		}
+		private ColumnParam GetColumnParam(int column, string path)
+		{
+			return new ColumnParam
 			{
-				Column = 0,
+				Column = column,
 				IsSearchResultPage = navigationArguments.IsSearchResultPage,
 				SearchQuery = navigationArguments.SearchQuery,
 				SearchUnindexedItems = navigationArguments.SearchUnindexedItems,
 				SearchPathParam = navigationArguments.SearchPathParam,
 				NavPathParam = path,
-				SelectItems = path == navigationArguments.NavPathParam? navigationArguments.SelectItems : null
-			});
-
-			var index = 0;
-			while (pathStack.TryPop(out path))
-			{
-				var (frame, _) = CreateAndAddNewBlade();
-
-				frame.Navigate(typeof(ColumnShellPage), new ColumnParam
-				{
-					Column = ++index,
-					NavPathParam = path,
-					SelectItems = path == navigationArguments.NavPathParam? navigationArguments.SelectItems : null
-				});
-			}
+				SelectItems = (path == navigationArguments.NavPathParam) ? navigationArguments.SelectItems : null
+			};
 		}
+		private List<string> GetRootPathList(string path)
+		{
+			var rootPathList = App.QuickAccessManager.Model.FavoriteItems.Select(NormalizePath)
+				.Concat(App.CloudDrivesManager.Drives.Select(x => NormalizePath(x.Path))).ToList();
+			rootPathList.Add(NormalizePath(GetPathRoot(path)));
 
+			return rootPathList;
+		}
 		protected override void InitializeCommandsViewModel()
 		{
 			CommandsViewModel = new BaseLayoutViewModel(ParentShellPageInstance, ItemManipulationModel);
